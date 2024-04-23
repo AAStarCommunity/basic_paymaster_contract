@@ -1,5 +1,3 @@
-![](https://i.imgur.com/lXhFOUv.png)
-
 # Getting Started
 
 Smart contracts for ERC-4337 account and paymaster implementations.
