@@ -179,5 +179,4 @@ Distributed under the GPL-3.0 License. See [LICENSE](./LICENSE.md) for more info
 
 # Contact
 
-Feel free to direct any technical related questions to the `dev-hub` channel in the
-[Stackup Discord](https://discord.gg/VTjJGvMNyW).
+
