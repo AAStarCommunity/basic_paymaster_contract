@@ -41,7 +41,7 @@ The account-abstraction directory in this repository uses git submodules to incl
 include the `--recurse-submodules` flag in your git clone command.
 
 ```bash
-git clone --recurse-submodules https://github.com/stackup-wallet/contracts.git
+git clone --recurse-submodules https://github.com/AAStarCommunity/basic_paymaster_contract.git
 ```
 
 ## Sensible Defaults
