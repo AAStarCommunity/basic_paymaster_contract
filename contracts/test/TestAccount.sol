@@ -14,7 +14,7 @@ import { TestGas } from "./TestGas.sol";
  */
 contract TestAccount is IAccount, TestGas {
     function validateUserOp(
-        UserOperation calldata userOp,
+        PackedUserOperation calldata userOp,
         bytes32 /*userOpHash*/,
         uint256 missingAccountFunds
     ) external returns (uint256 validationData) {

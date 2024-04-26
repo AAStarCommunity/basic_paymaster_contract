@@ -10,6 +10,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import "account-abstraction/contracts/core/Helpers.sol" as Helpers;
+import {calldataKeccak} from "@account-abstraction/contracts/core/Helpers.sol";
 
 /**
  * A paymaster based on the eth-infinitism sample VerifyingPaymaster contract.
@@ -53,8 +54,8 @@ contract VerifyingPaymaster is BasePaymaster {
             abi.encode(
             userOp.getSender(),
             userOp.nonce,
-            calldataKeccak(userOp.initCode),
-            calldataKeccak(userOp.callData),
+            Helpers.calldataKeccak(userOp.initCode),
+            Helpers.calldataKeccak(userOp.callData),
             userOp.accountGasLimits,
             userOp.preVerificationGas,
             userOp.gasFees
@@ -77,9 +78,8 @@ contract VerifyingPaymaster is BasePaymaster {
     function _validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32 /*userOpHash*/,
-        uint256 requiredPreFund
-    ) internal view override returns (bytes memory context, uint256 validationData) {
-        (requiredPreFund);
+        uint256 maxCost
+    ) internal override returns (bytes memory context, uint256 validationData) {
 
         (
             uint48 validUntil,
@@ -116,7 +116,7 @@ contract VerifyingPaymaster is BasePaymaster {
         uint256 actualUserOpFeePerGas) internal override {
         (address sender, IERC20 token, uint256 exchangeRate, bytes32 gasFee) = abi
             .decode(context, (address, IERC20, uint256, bytes32));
-        maxFeePerGas = UserOperationLib.unpackGasFee(gasFee);
+        (uint256 maxPriorityFeePerGas, uint256 maxFeePerGas) = UserOperationLib.unpackUints(gasFee);
 
         uint256 opGasPrice;
         unchecked {
