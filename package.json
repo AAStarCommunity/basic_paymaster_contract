@@ -92,5 +92,8 @@
   },
   "resolutions": {
     "@solidity-parser/parser": "0.16.0"
+  },
+  "dependencies": {
+    "@account-abstraction/contracts": "^0.7.0"
   }
 }

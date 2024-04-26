@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.23;
 
 /* solhint-disable no-empty-blocks */
 
 import { IAccount } from "account-abstraction/contracts/interfaces/IAccount.sol";
-import { UserOperation } from "account-abstraction/contracts/interfaces/UserOperation.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import { TestGas } from "./TestGas.sol";
 
 /**

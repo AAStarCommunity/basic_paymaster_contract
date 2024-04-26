@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.23;
 
 /* solhint-disable no-empty-blocks */
 
 import { IPaymaster } from "account-abstraction/contracts/interfaces/IPaymaster.sol";
-import { UserOperation } from "account-abstraction/contracts/interfaces/UserOperation.sol";
+import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import { IEntryPoint } from "account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import { TestGas } from "./TestGas.sol";
 
@@ -15,7 +15,7 @@ import { TestGas } from "./TestGas.sol";
  */
 contract TestPaymaster is IPaymaster, TestGas {
     function validatePaymasterUserOp(
-        UserOperation calldata userOp,
+        PackedUserOperation calldata userOp,
         bytes32 /*userOpHash*/,
         uint256 /*maxCost*/
     ) external pure returns (bytes memory context, uint256 validationData) {
