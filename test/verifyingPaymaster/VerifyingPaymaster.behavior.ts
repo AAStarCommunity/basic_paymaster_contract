@@ -1,6 +1,6 @@
-import { fillAndSign } from "accountabstraction/test/UserOp";
-import { UserOperation } from "accountabstraction/test/UserOperation";
-import { createAccount, simulationResultCatch } from "accountabstraction/test/testutils";
+import { fillAndSign, fillSignAndPack, simulateValidation, DefaultsForUserOp, packUserOp } from "accountabstraction/test/UserOp";
+import { PackedUserOperation } from "accountabstraction/test/UserOperation";
+import { createAccount,decodeRevertReason,packPaymasterData,parseValidationData,AddressZero,unpackAccountGasLimits } from "accountabstraction/test/testutils";
 import { EntryPoint, SimpleAccount, TestToken, TestToken__factory } from "accountabstraction/typechain";
 import { expect } from "chai";
 import { BigNumber } from "ethers";
@@ -61,7 +61,8 @@ export function shouldSetVerifierCorrectly(): void {
     const curr = await this.verifyingPaymaster.verifier();
     const verifier = ethers.Wallet.createRandom();
     const unauthorizedVPM = this.verifyingPaymaster.connect(this.signers.nonAdmin);
-    await expect(unauthorizedVPM.setVerifier(verifier.address)).to.be.revertedWith("Ownable: caller is not the owner");
+    //await expect(unauthorizedVPM.setVerifier(Verifier.address)).to.be.revertedWith("Ownable: caller is not the owner");
+    expect(await unauthorizedVPM.setVerifier(verifier.address).catch(e => decodeRevertReason(e))).to.include('OwnableUnauthorizedAccount')
     expect(await this.verifyingPaymaster.verifier()).to.equal(curr);
   });
 }
@@ -77,14 +78,22 @@ export function shouldSetVaultCorrectly(): void {
     const curr = await this.verifyingPaymaster.vault();
     const vault = ethers.Wallet.createRandom();
     const unauthorizedVPM = this.verifyingPaymaster.connect(this.signers.nonAdmin);
-    await expect(unauthorizedVPM.setVault(vault.address)).to.be.revertedWith("Ownable: caller is not the owner");
+    expect(await unauthorizedVPM.setVerifier(vault.address).catch(e => decodeRevertReason(e))).to.include('OwnableUnauthorizedAccount')
+    //await expect(unauthorizedVPM.setVault(vault.address)).to.be.revertedWith("Ownable: caller is not the owner");
     expect(await this.verifyingPaymaster.vault()).to.equal(curr);
   });
 }
 
 export function shouldParsePaymasterAndDataCorrectly(): void {
   it("should parse data properly", async function () {
-    const paymasterAndData = ethers.utils.hexConcat([this.verifyingPaymaster.address, encodePaymasterData(), MOCK_SIG]);
+    const paymasterAndData = packPaymasterData(
+      this.verifyingPaymaster.address,
+      DefaultsForUserOp.paymasterVerificationGasLimit,
+      DefaultsForUserOp.paymasterPostOpGasLimit,
+      ethers.utils.hexConcat([
+        encodePaymasterData(),  MOCK_SIG
+      ])
+    )
 
     const res = await this.verifyingPaymaster.parsePaymasterAndData(paymasterAndData);
     expect(res.validUntil).to.equal(ethers.BigNumber.from(MOCK_VALID_UNTIL));
@@ -95,11 +104,14 @@ export function shouldParsePaymasterAndDataCorrectly(): void {
   });
 
   it("should parse data properly for ERC20 token use case", async function () {
-    const paymasterAndData = ethers.utils.hexConcat([
+    const paymasterAndData = packPaymasterData(
       this.verifyingPaymaster.address,
-      encodePaymasterData(MOCK_ERC20_ADDR, MOCK_FX),
-      MOCK_SIG,
-    ]);
+      DefaultsForUserOp.paymasterVerificationGasLimit,
+      DefaultsForUserOp.paymasterPostOpGasLimit,
+      ethers.utils.hexConcat([
+        encodePaymasterData(MOCK_ERC20_ADDR, MOCK_FX),  MOCK_SIG
+      ])
+    )
 
     const res = await this.verifyingPaymaster.parsePaymasterAndData(paymasterAndData);
     expect(res.validUntil).to.equal(ethers.BigNumber.from(MOCK_VALID_UNTIL));
@@ -117,26 +129,26 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
   });
 
   it("should revert on no signature", async function () {
-    const userOp = await fillAndSign(
+    const userOp = await fillSignAndPack(
       {
         sender: account.address,
-        paymasterAndData: ethers.utils.hexConcat([this.verifyingPaymaster.address, encodePaymasterData(), "0x1234"]),
+        paymaster: this.verifyingPaymaster.address,
+        paymasterData: ethers.utils.hexConcat([encodePaymasterData(), '0x1234'])
       },
       this.signers.admin,
       this.entryPoint,
     );
-
-    await expect(this.entryPoint.callStatic.simulateValidation(userOp))
-      .to.be.revertedWithCustomError(this.entryPoint, "FailedOp")
-      .withArgs(0, "AA33 reverted: VerifyingPaymaster: invalid signature length in paymasterAndData");
+    expect(await simulateValidation(userOp, this.entryPoint.address)
+        .catch(e => decodeRevertReason(e)))
+        .to.include('FailedOpWithRevert(0,"AA33 reverted",Error(VerifyingPaymaster: invalid signature length in paymasterAndData))')
   });
 
   it("should revert on invalid signature", async function () {
-    const userOp = await fillAndSign(
+    const userOp = await fillSignAndPack(
       {
         sender: account.address,
-        paymasterAndData: ethers.utils.hexConcat([
-          this.verifyingPaymaster.address,
+        paymaster: this.verifyingPaymaster.address,
+        paymasterData: ethers.utils.hexConcat([
           encodePaymasterData(),
           "0x" + "00".repeat(65),
         ]),
@@ -144,21 +156,24 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
       this.signers.admin,
       this.entryPoint,
     );
-
-    await expect(this.entryPoint.callStatic.simulateValidation(userOp))
-      .to.be.revertedWithCustomError(this.entryPoint, "FailedOp")
-      .withArgs(0, "AA33 reverted: ECDSA: invalid signature");
+    expect(await simulateValidation(userOp, this.entryPoint.address)
+        .catch(e => decodeRevertReason(e)))
+        .to.include('FailedOpWithRevert(0,"AA33 reverted",ECDSAInvalidSignature()')
   });
 
   describe("with wrong signature", async function () {
-    let wrongSigUserOp: UserOperation;
+    let wrongSigUserOp: PackedUserOperation;
 
     before(async function () {
       const sig = await this.signers.nonAdmin.signMessage(ethers.utils.arrayify("0xdead"));
-      wrongSigUserOp = await fillAndSign(
+      wrongSigUserOp = await fillSignAndPack(
         {
           sender: account.address,
-          paymasterAndData: ethers.utils.hexConcat([this.verifyingPaymaster.address, encodePaymasterData(), sig]),
+          paymaster: this.verifyingPaymaster.address,
+          paymasterData: ethers.utils.hexConcat([
+            encodePaymasterData(),
+            sig,
+          ]),
         },
         this.signers.admin,
         this.entryPoint,
@@ -166,8 +181,8 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
     });
 
     it("should return signature error (no revert) on wrong verifier signature", async function () {
-      const ret = await this.entryPoint.callStatic.simulateValidation(wrongSigUserOp).catch(simulationResultCatch);
-      expect(ret.returnInfo.sigFailed).to.be.true;
+      const ret = await simulateValidation(wrongSigUserOp, this.entryPoint.address);
+      expect(parseValidationData(ret.returnInfo.paymasterValidationData).aggregator).to.match(/0x0*1$/)
     });
 
     it("should revert on signature failure in handleOps", async function () {
@@ -182,8 +197,8 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
       const partialUserOp = await fillAndSign(
         {
           sender: account.address,
-          paymasterAndData: ethers.utils.hexConcat([
-            this.verifyingPaymaster.address,
+          paymaster: this.verifyingPaymaster.address,
+          paymasterData: ethers.utils.hexConcat([
             encodePaymasterData(),
             "0x" + "00".repeat(65),
           ]),
@@ -192,27 +207,31 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
         this.entryPoint,
       );
       const hash = await this.verifyingPaymaster.getHash(
-        partialUserOp,
+        packUserOp(partialUserOp),
         MOCK_VALID_UNTIL,
         MOCK_VALID_AFTER,
         ethers.constants.AddressZero,
         ethers.constants.Zero,
       );
-
       const sig = await this.signers.verifier.signMessage(ethers.utils.arrayify(hash));
-      const userOp = await fillAndSign(
+      const userOp = await fillSignAndPack(
         {
           ...partialUserOp,
-          paymasterAndData: ethers.utils.hexConcat([this.verifyingPaymaster.address, encodePaymasterData(), sig]),
+          paymasterData: ethers.utils.hexConcat([encodePaymasterData(), sig]),
         },
         this.signers.admin,
         this.entryPoint,
       );
-
-      const res = await this.entryPoint.callStatic.simulateValidation(userOp).catch(simulationResultCatch);
-      expect(res.returnInfo.sigFailed).to.be.false;
-      expect(res.returnInfo.validAfter).to.equal(ethers.BigNumber.from(MOCK_VALID_AFTER));
-      expect(res.returnInfo.validUntil).to.equal(ethers.BigNumber.from(MOCK_VALID_UNTIL));
+      const res = await simulateValidation(userOp, this.entryPoint.address);
+      const validationData = parseValidationData(res.returnInfo.paymasterValidationData)
+      expect(validationData).to.eql({
+        aggregator: AddressZero,
+        validAfter: parseInt(MOCK_VALID_AFTER),
+        validUntil: parseInt(MOCK_VALID_UNTIL)
+      })
+      //expect(res.returnInfo.sigFailed).to.be.false;
+      //expect(res.returnInfo.validAfter).to.equal(ethers.BigNumber.from(MOCK_VALID_AFTER));
+      //expect(res.returnInfo.validUntil).to.equal(ethers.BigNumber.from(MOCK_VALID_UNTIL));
       expect(res.returnInfo.paymasterContext).to.equal("0x");
     });
 
@@ -220,8 +239,8 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
       const partialUserOp = await fillAndSign(
         {
           sender: account.address,
-          paymasterAndData: ethers.utils.hexConcat([
-            this.verifyingPaymaster.address,
+          paymaster: this.verifyingPaymaster.address,
+          paymasterData: ethers.utils.hexConcat([
             encodePaymasterData(MOCK_ERC20_ADDR, MOCK_FX),
             "0x" + "00".repeat(65),
           ]),
@@ -230,7 +249,7 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
         this.entryPoint,
       );
       const hash = await this.verifyingPaymaster.getHash(
-        partialUserOp,
+        packUserOp(partialUserOp),
         MOCK_VALID_UNTIL,
         MOCK_VALID_AFTER,
         MOCK_ERC20_ADDR,
@@ -238,11 +257,10 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
       );
 
       const sig = await this.signers.verifier.signMessage(ethers.utils.arrayify(hash));
-      const userOp = await fillAndSign(
+      const userOp = await fillSignAndPack(
         {
           ...partialUserOp,
-          paymasterAndData: ethers.utils.hexConcat([
-            this.verifyingPaymaster.address,
+          paymasterData: ethers.utils.hexConcat([
             encodePaymasterData(MOCK_ERC20_ADDR, MOCK_FX),
             sig,
           ]),
@@ -251,10 +269,16 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
         this.entryPoint,
       );
 
-      const res = await this.entryPoint.callStatic.simulateValidation(userOp).catch(simulationResultCatch);
-      expect(res.returnInfo.sigFailed).to.be.false;
-      expect(res.returnInfo.validAfter).to.equal(ethers.BigNumber.from(MOCK_VALID_AFTER));
-      expect(res.returnInfo.validUntil).to.equal(ethers.BigNumber.from(MOCK_VALID_UNTIL));
+      const res = await simulateValidation(userOp, this.entryPoint.address);
+      const validationData = parseValidationData(res.returnInfo.paymasterValidationData)
+      expect(validationData).to.eql({
+        aggregator: AddressZero,
+        validAfter: parseInt(MOCK_VALID_AFTER),
+        validUntil: parseInt(MOCK_VALID_UNTIL)
+      })
+      //expect(res.returnInfo.sigFailed).to.be.false;
+      //expect(res.returnInfo.validAfter).to.equal(ethers.BigNumber.from(MOCK_VALID_AFTER));
+      //expect(res.returnInfo.validUntil).to.equal(ethers.BigNumber.from(MOCK_VALID_UNTIL));
       expect(res.returnInfo.paymasterContext).to.not.equal("0x");
     });
   });
@@ -277,8 +301,8 @@ export function shouldHandleOpsCorrectly() {
     const partialUserOp = await fillAndSign(
       {
         sender: account.address,
-        paymasterAndData: ethers.utils.hexConcat([
-          this.verifyingPaymaster.address,
+        paymaster: this.verifyingPaymaster.address,
+        paymasterData: ethers.utils.hexConcat([
           encodePaymasterData(token.address, MOCK_FX),
           "0x" + "00".repeat(65),
         ]),
@@ -288,7 +312,7 @@ export function shouldHandleOpsCorrectly() {
       this.entryPoint,
     );
     const hash = await this.verifyingPaymaster.getHash(
-      partialUserOp,
+      packUserOp(partialUserOp),
       MOCK_VALID_UNTIL,
       MOCK_VALID_AFTER,
       token.address,
@@ -296,11 +320,10 @@ export function shouldHandleOpsCorrectly() {
     );
 
     const sig = await this.signers.verifier.signMessage(ethers.utils.arrayify(hash));
-    const userOp = await fillAndSign(
+    const userOp = await fillSignAndPack(
       {
         ...partialUserOp,
-        paymasterAndData: ethers.utils.hexConcat([
-          this.verifyingPaymaster.address,
+        paymasterData: ethers.utils.hexConcat([
           encodePaymasterData(token.address, MOCK_FX),
           sig,
         ]),
@@ -308,16 +331,16 @@ export function shouldHandleOpsCorrectly() {
       this.signers.admin,
       this.entryPoint,
     );
-
-    const requiredPrefund = ethers.BigNumber.from(userOp.callGasLimit)
-      .add(ethers.BigNumber.from(userOp.verificationGasLimit).mul(3))
+    const requiredPrefund = ethers.BigNumber.from(partialUserOp.callGasLimit)
+      .add(ethers.BigNumber.from(partialUserOp.verificationGasLimit).mul(3))
       .add(userOp.preVerificationGas)
-      .mul(userOp.maxFeePerGas);
+      .mul(partialUserOp.maxFeePerGas);
     const initBalance = await token.balanceOf(vault);
     await this.entryPoint.handleOps([userOp], this.signers.admin.address);
     const postBalance = await token.balanceOf(vault);
 
     const ev = await getUserOpEvent(this.entryPoint);
+    console.log(ev)
     expect(ev.args.success).to.be.true;
     expect(postBalance.sub(initBalance)).to.be.greaterThan(ethers.constants.Zero);
     expect(postBalance.sub(initBalance)).to.be.lessThanOrEqual(
@@ -329,8 +352,8 @@ export function shouldHandleOpsCorrectly() {
     const partialUserOp = await fillAndSign(
       {
         sender: account.address,
-        paymasterAndData: ethers.utils.hexConcat([
-          this.verifyingPaymaster.address,
+        paymaster: this.verifyingPaymaster.address,
+        paymasterData: ethers.utils.hexConcat([
           encodePaymasterData(token.address, MOCK_FX),
           "0x" + "00".repeat(65),
         ]),
@@ -340,7 +363,7 @@ export function shouldHandleOpsCorrectly() {
       this.entryPoint,
     );
     const hash = await this.verifyingPaymaster.getHash(
-      partialUserOp,
+      packUserOp(partialUserOp),
       MOCK_VALID_UNTIL,
       MOCK_VALID_AFTER,
       token.address,
@@ -348,11 +371,10 @@ export function shouldHandleOpsCorrectly() {
     );
 
     const sig = await this.signers.verifier.signMessage(ethers.utils.arrayify(hash));
-    const userOp = await fillAndSign(
+    const userOp = await fillSignAndPack(
       {
         ...partialUserOp,
-        paymasterAndData: ethers.utils.hexConcat([
-          this.verifyingPaymaster.address,
+        paymasterData: ethers.utils.hexConcat([
           encodePaymasterData(token.address, MOCK_FX),
           sig,
         ]),

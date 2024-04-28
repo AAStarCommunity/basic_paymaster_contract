@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 /* solhint-disable no-empty-blocks */
 
 import { IPaymaster } from "account-abstraction/contracts/interfaces/IPaymaster.sol";
-import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {PackedUserOperation} from "account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import { IEntryPoint } from "account-abstraction/contracts/interfaces/IEntryPoint.sol";
 import { TestGas } from "./TestGas.sol";
 
@@ -19,10 +19,10 @@ contract TestPaymaster is IPaymaster, TestGas {
         bytes32 /*userOpHash*/,
         uint256 /*maxCost*/
     ) external pure returns (bytes memory context, uint256 validationData) {
-        return (abi.encode(userOp.callGasLimit, userOp.paymasterAndData[20:]), 0);
+        return (abi.encode(userOp.accountGasLimits, userOp.paymasterAndData[20:]), 0);
     }
 
-    function postOp(PostOpMode mode, bytes calldata context, uint256 /*actualGasCost*/) external {
+    function postOp(PostOpMode mode, bytes calldata context, uint256 /*actualGasCost*/, uint256 /*actualUserOpFeePerGas*/) external {
         if (mode == PostOpMode.postOpReverted) {
             return;
         }

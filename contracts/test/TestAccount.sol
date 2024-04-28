@@ -4,7 +4,7 @@ pragma solidity ^0.8.23;
 /* solhint-disable no-empty-blocks */
 
 import { IAccount } from "account-abstraction/contracts/interfaces/IAccount.sol";
-import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {PackedUserOperation} from "account-abstraction/contracts/interfaces/PackedUserOperation.sol";
 import { TestGas } from "./TestGas.sol";
 
 /**
@@ -23,7 +23,7 @@ contract TestAccount is IAccount, TestGas {
             (uint256 depth, uint256 width, uint256 discount) = abi.decode(userOp.callData, (uint256, uint256, uint256));
             this.recursiveCall(depth, width, discount, depth);
         }
-        if (sig == 0x0002 && userOp.callGasLimit > 0) {
+        if (sig == 0x0002 && userOp.accountGasLimits > 0) {
             // Force a validation OOG by causing a bad VGL estimate.
             // VGL is estimated by setting CGL to 0. If CGL is > 0 we'll waste gas to trigger an OOG error.
             uint256 times = abi.decode(userOp.callData, (uint256));

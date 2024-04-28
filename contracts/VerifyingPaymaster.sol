@@ -2,15 +2,15 @@
 pragma solidity ^0.8.23;
 
 import {IEntryPoint} from "account-abstraction/contracts/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "@account-abstraction/contracts/interfaces/PackedUserOperation.sol";
-import {UserOperationLib} from "@account-abstraction/contracts/core/UserOperationLib.sol";
+import {PackedUserOperation} from "account-abstraction/contracts/interfaces/PackedUserOperation.sol";
+import {UserOperationLib} from "account-abstraction/contracts/core/UserOperationLib.sol";
 import {BasePaymaster} from "account-abstraction/contracts/core/BasePaymaster.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import "account-abstraction/contracts/core/Helpers.sol" as Helpers;
-import {calldataKeccak} from "@account-abstraction/contracts/core/Helpers.sol";
 
 /**
  * A paymaster based on the eth-infinitism sample VerifyingPaymaster contract.
@@ -25,9 +25,9 @@ contract VerifyingPaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using SafeERC20 for IERC20;
 
-    uint256 private constant VALID_PND_OFFSET = 20;
+    uint256 private constant VALID_PND_OFFSET = 52;
 
-    uint256 private constant SIGNATURE_OFFSET = 148;
+    uint256 private constant SIGNATURE_OFFSET = 180;
 
     uint256 public constant POST_OP_GAS = 35000;
 
@@ -79,8 +79,8 @@ contract VerifyingPaymaster is BasePaymaster {
         PackedUserOperation calldata userOp,
         bytes32 /*userOpHash*/,
         uint256 maxCost
-    ) internal override returns (bytes memory context, uint256 validationData) {
-
+    ) internal view override returns (bytes memory context, uint256 validationData) {
+        (maxCost);
         (
             uint48 validUntil,
             uint48 validAfter,
@@ -93,7 +93,7 @@ contract VerifyingPaymaster is BasePaymaster {
             signature.length == 64 || signature.length == 65,
             "VerifyingPaymaster: invalid signature length in paymasterAndData"
         );
-        bytes32 hash = ECDSA.toEthSignedMessageHash(getHash(userOp, validUntil, validAfter, erc20Token, exchangeRate));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(userOp, validUntil, validAfter, erc20Token, exchangeRate));
         context = "";
         if (erc20Token != address(0)) {
             context = abi.encode(
@@ -113,7 +113,7 @@ contract VerifyingPaymaster is BasePaymaster {
 
     function _postOp(PostOpMode mode, bytes calldata context,
         uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas) internal override {
+        uint256 /*actualUserOpFeePerGas*/) internal override {
         (address sender, IERC20 token, uint256 exchangeRate, bytes32 gasFee) = abi
             .decode(context, (address, IERC20, uint256, bytes32));
         (uint256 maxPriorityFeePerGas, uint256 maxFeePerGas) = UserOperationLib.unpackUints(gasFee);
