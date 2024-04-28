@@ -11,6 +11,8 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import "account-abstraction/contracts/core/Helpers.sol" as Helpers;
 import {calldataKeccak} from "@account-abstraction/contracts/core/Helpers.sol";
+import "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+
 
 /**
  * A paymaster based on the eth-infinitism sample VerifyingPaymaster contract.
@@ -25,9 +27,9 @@ contract VerifyingPaymaster is BasePaymaster {
     using UserOperationLib for PackedUserOperation;
     using SafeERC20 for IERC20;
 
-    uint256 private constant VALID_PND_OFFSET = 20;
+    uint256 private constant VALID_PND_OFFSET = UserOperationLib.PAYMASTER_DATA_OFFSET;
 
-    uint256 private constant SIGNATURE_OFFSET = 148;
+    uint256 private constant SIGNATURE_OFFSET = 180;
 
     uint256 public constant POST_OP_GAS = 35000;
 
@@ -54,8 +56,8 @@ contract VerifyingPaymaster is BasePaymaster {
             abi.encode(
             userOp.getSender(),
             userOp.nonce,
-            Helpers.calldataKeccak(userOp.initCode),
-            Helpers.calldataKeccak(userOp.callData),
+            keccak256(userOp.initCode),
+            keccak256(userOp.callData),
             userOp.accountGasLimits,
             userOp.preVerificationGas,
             userOp.gasFees
@@ -69,6 +71,7 @@ contract VerifyingPaymaster is BasePaymaster {
         address erc20Token,
         uint256 exchangeRate
     ) public view returns (bytes32) {
+        address sender = userOp.getSender();
         return
             keccak256(
             abi.encode(pack(userOp), block.chainid, address(this), validUntil, validAfter, erc20Token, exchangeRate)
@@ -80,7 +83,7 @@ contract VerifyingPaymaster is BasePaymaster {
         bytes32 /*userOpHash*/,
         uint256 maxCost
     ) internal override returns (bytes memory context, uint256 validationData) {
-
+        (maxCost);
         (
             uint48 validUntil,
             uint48 validAfter,
@@ -93,7 +96,7 @@ contract VerifyingPaymaster is BasePaymaster {
             signature.length == 64 || signature.length == 65,
             "VerifyingPaymaster: invalid signature length in paymasterAndData"
         );
-        bytes32 hash = ECDSA.toEthSignedMessageHash(getHash(userOp, validUntil, validAfter, erc20Token, exchangeRate));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(userOp, validUntil, validAfter, erc20Token, exchangeRate));
         context = "";
         if (erc20Token != address(0)) {
             context = abi.encode(
