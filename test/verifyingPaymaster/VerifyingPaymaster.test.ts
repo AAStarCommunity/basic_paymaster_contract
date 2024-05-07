@@ -3,6 +3,8 @@ import type { SignerWithAddress } from "@nomiclabs/hardhat-ethers/dist/src/signe
 import { deployEntryPoint } from "accountabstraction/test/testutils";
 import { ethers } from "hardhat";
 
+import { parseEther } from 'ethers/lib/utils'
+
 import type { Signers } from "../types";
 import {
   shouldHandleOpsCorrectly,
@@ -30,12 +32,16 @@ describe("VerifyingPaymaster", function () {
 
   beforeEach(async function () {
     const { verifyingPaymaster } = await this.loadFixture(deployVerifyingPaymasterFixture(this.entryPoint.address));
+    await verifyingPaymaster.addStake(1, { value: parseEther('2') })
+    await this.entryPoint.depositTo(verifyingPaymaster.address, { value: parseEther('1') });
     this.verifyingPaymaster = verifyingPaymaster;
   });
+  
 
   describe("Initialize", function () {
     shouldInitializeCorrectly();
   });
+  
 
   describe("Method setVerifier", function () {
     shouldSetVerifierCorrectly();

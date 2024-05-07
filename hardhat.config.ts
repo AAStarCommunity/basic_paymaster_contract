@@ -32,10 +32,9 @@ function getChainConfig(jsonRpcUrl?: string): NetworkUserConfig {
     };
   }
   return {
-    accounts: {
-      mnemonic,
-    },
+    accounts:{mnemonic},//[process.env.PRIVATE_KEY],
     url: jsonRpcUrl,
+    gas: 5000000
   };
 }
 

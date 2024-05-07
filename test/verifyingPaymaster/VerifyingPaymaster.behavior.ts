@@ -33,6 +33,21 @@ const getUserOpEvent = async (ep: EntryPoint) => {
   return log;
 };
 
+const getLogEvent = async (ep: EntryPoint) => {
+  const [log] = await ep.queryFilter(ep.filters.LogEvent(), await ethers.provider.getBlockNumber());
+  return log;
+};
+
+const getPostOpRevertReason = async (ep: EntryPoint) => {
+  const [log] = await ep.queryFilter(ep.filters.PostOpRevertReason(), await ethers.provider.getBlockNumber());
+  return log;
+};
+
+const getUserOperationRevertReason = async (ep: EntryPoint) => {
+  const [log] = await ep.queryFilter(ep.filters.UserOperationRevertReason(), await ethers.provider.getBlockNumber());
+  return log;
+};
+
 export function shouldInitializeCorrectly(): void {
   it("should return the correct entryPoint", async function () {
     expect(await this.verifyingPaymaster.entryPoint()).to.equal(ethers.utils.getAddress(this.entryPoint.address));
@@ -182,7 +197,7 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
 
     it("should return signature error (no revert) on wrong verifier signature", async function () {
       const ret = await simulateValidation(wrongSigUserOp, this.entryPoint.address);
-      expect(parseValidationData(ret.returnInfo.paymasterValidationData).aggregator).to.match(/0x0*1$/)
+      expect(parseValidationData(ret.returnInfo.paymasterValidationData).aggregator).to.match(/0x0*1$/);
     });
 
     it("should revert on signature failure in handleOps", async function () {
@@ -223,7 +238,7 @@ export function shouldValidatePaymasterUserOpCorrectly(): void {
         this.entryPoint,
       );
       const res = await simulateValidation(userOp, this.entryPoint.address);
-      const validationData = parseValidationData(res.returnInfo.paymasterValidationData)
+      const validationData = parseValidationData(res.returnInfo.paymasterValidationData);
       expect(validationData).to.eql({
         aggregator: AddressZero,
         validAfter: parseInt(MOCK_VALID_AFTER),
@@ -340,7 +355,7 @@ export function shouldHandleOpsCorrectly() {
     const postBalance = await token.balanceOf(vault);
 
     const ev = await getUserOpEvent(this.entryPoint);
-    console.log(ev)
+    
     expect(ev.args.success).to.be.true;
     expect(postBalance.sub(initBalance)).to.be.greaterThan(ethers.constants.Zero);
     expect(postBalance.sub(initBalance)).to.be.lessThanOrEqual(
@@ -391,4 +406,5 @@ export function shouldHandleOpsCorrectly() {
     expect(ev.args.success).to.be.false;
     expect(postBalance.sub(initBalance)).to.equal(ethers.constants.Zero);
   });
+  
 }

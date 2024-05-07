@@ -113,7 +113,7 @@ contract VerifyingPaymaster is BasePaymaster {
 
     function _postOp(PostOpMode mode, bytes calldata context,
         uint256 actualGasCost,
-        uint256 /*actualUserOpFeePerGas*/) internal override {
+        uint256 actualUserOpFeePerGas) internal override {
         (address sender, IERC20 token, uint256 exchangeRate, bytes32 gasFee) = abi
             .decode(context, (address, IERC20, uint256, bytes32));
         (uint256 maxPriorityFeePerGas, uint256 maxFeePerGas) = UserOperationLib.unpackUints(gasFee);
@@ -127,7 +127,7 @@ contract VerifyingPaymaster is BasePaymaster {
             }
         }
 
-        uint256 actualTokenCost = ((actualGasCost + (POST_OP_GAS * opGasPrice)) * exchangeRate) / 1e18;
+        uint256 actualTokenCost = ((actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * exchangeRate) / 1e18;
         if (mode != PostOpMode.postOpReverted) {
             token.safeTransferFrom(sender, vault, actualTokenCost);
         }
