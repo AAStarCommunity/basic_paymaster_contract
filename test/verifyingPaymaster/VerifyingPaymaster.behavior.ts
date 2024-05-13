@@ -33,21 +33,6 @@ const getUserOpEvent = async (ep: EntryPoint) => {
   return log;
 };
 
-const getLogEvent = async (ep: EntryPoint) => {
-  const [log] = await ep.queryFilter(ep.filters.LogEvent(), await ethers.provider.getBlockNumber());
-  return log;
-};
-
-const getPostOpRevertReason = async (ep: EntryPoint) => {
-  const [log] = await ep.queryFilter(ep.filters.PostOpRevertReason(), await ethers.provider.getBlockNumber());
-  return log;
-};
-
-const getUserOperationRevertReason = async (ep: EntryPoint) => {
-  const [log] = await ep.queryFilter(ep.filters.UserOperationRevertReason(), await ethers.provider.getBlockNumber());
-  return log;
-};
-
 export function shouldInitializeCorrectly(): void {
   it("should return the correct entryPoint", async function () {
     expect(await this.verifyingPaymaster.entryPoint()).to.equal(ethers.utils.getAddress(this.entryPoint.address));

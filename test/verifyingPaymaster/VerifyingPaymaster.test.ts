@@ -32,8 +32,6 @@ describe("VerifyingPaymaster", function () {
 
   beforeEach(async function () {
     const { verifyingPaymaster } = await this.loadFixture(deployVerifyingPaymasterFixture(this.entryPoint.address));
-    await verifyingPaymaster.addStake(1, { value: parseEther('2') })
-    await this.entryPoint.depositTo(verifyingPaymaster.address, { value: parseEther('1') });
     this.verifyingPaymaster = verifyingPaymaster;
   });
   
